@@ -38,6 +38,36 @@ def analyze():
     return jsonify({"status": "valid", "platform": "direct-media",
                     "message": "Direct media URL accepted for checking."})
 
+@app.post("/size")
+def size_check():
+    data = request.get_json(silent=True) or {}
+    url = data.get("url", "").strip()
+    if not valid_url(url):
+        return jsonify({"error": "Valid HTTPS URL required"}), 400
+
+    host = (urlparse(url).hostname or "").lower()
+    if host == "youtube.com" or host.endswith(".youtube.com") or host == "youtu.be" or host == "instagram.com" or host.endswith(".instagram.com"):
+        return jsonify({"error": "Size estimate is not available for this platform link."}), 403
+
+    ext = Path(urlparse(url).path).suffix.lower()
+    if ext not in ALLOWED:
+        return jsonify({"error": "Supported direct formats: MP4, WEBM, MP3, M4A"}), 400
+
+    try:
+        with requests.get(url, stream=True, allow_redirects=True, timeout=(10, 20)) as r:
+            r.raise_for_status()
+            length = r.headers.get("content-length")
+            if not length:
+                return jsonify({"size_bytes": None, "size_mb": None,
+                                "message": "Server did not provide file size."})
+            total = int(length)
+            return jsonify({"size_bytes": total,
+                            "size_mb": round(total / (1024 * 1024), 2),
+                            "size_gb": round(total / (1024 * 1024 * 1024), 3),
+                            "content_type": r.headers.get("content-type", "")})
+    except Exception:
+        return jsonify({"error": "Could not check file size; URL may be blocked."}), 400
+
 @app.post("/download")
 def download():
     data = request.get_json(silent=True) or {}

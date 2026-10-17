@@ -1,4 +1,3 @@
-
 from flask import Flask, request, jsonify
 from urllib.parse import urlparse
 
@@ -20,19 +19,29 @@ def health():
 def analyze():
     data = request.get_json(silent=True) or {}
     url = data.get("url", "").strip()
-
-    if not url:
-        return jsonify({"error": "URL is required"}), 400
-
     parsed = urlparse(url)
 
-    if parsed.scheme not in ("http", "https") or not parsed.netloc:
-        return jsonify({"error": "Valid HTTP/HTTPS URL required"}), 400
+    if parsed.scheme not in ("http", "https") or not parsed.hostname:
+        return jsonify({"error": "Valid URL required"}), 400
+
+    host = (parsed.hostname or "").lower()
+    supported = (
+        host == "youtube.com" or host.endswith(".youtube.com")
+        or host == "youtu.be"
+        or host == "instagram.com" or host.endswith(".instagram.com")
+    )
+
+    if supported:
+        return jsonify({
+            "status": "recognized",
+            "platform": "YouTube" if "youtube" in host or host == "youtu.be" else "Instagram",
+            "message": "Link recognized. Use the platform's official download option or authorized media source."
+        })
 
     return jsonify({
-        "url": url,
         "status": "valid",
-        "message": "URL received. Only use media you own or have permission to download."
+        "platform": "direct-media-or-other",
+        "message": "URL received."
     })
 
 if __name__ == "__main__":
